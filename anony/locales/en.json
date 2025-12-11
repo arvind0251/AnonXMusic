@@ -69,9 +69,7 @@
     "play_log": "<u>{0} Play Log</u>\n\n<b>Chat:</b> <code>{1}</code> | {2}\n<b>User:</b> <code>{3}</code> | {4}\n<b>Message link:</b> {5}\n\n<b>Title:</b> {6}\n<b>Duration:</b> {7} min",
     "play_queued": "<u><b>Added to queue: {0}\n\n<b>Title:</b> <a href={1}>{2}</a>\n\n<b>Duration:</b> {3} min\n<b>Requested by:</b> {4}",
     "play_usage": "<b>Usage:</b>\n\n<code>/play attention</code>",
-    
     "play_downloading": "Downloading... please wait!",
-
     "play_seeking": "Seeking the current stream...",
     "play_again": "Replaying the current media...",
     "play_now": "Play Now",

@@ -2,7 +2,6 @@
 # Licensed under the MIT License.
 # This file is part of AnonXMusic
 
-
 import re
 
 from pyrogram import filters, types
@@ -11,6 +10,7 @@ from anony import anon, app, db, lang, queue, tg, yt
 from anony.helpers import admin_check, buttons, can_manage_vc
 
 
+# ================= CANCEL DOWNLOAD =================
 @app.on_callback_query(filters.regex("cancel_dl") & ~app.bl_users)
 @lang.language()
 async def cancel_dl(_, query: types.CallbackQuery):
@@ -18,6 +18,7 @@ async def cancel_dl(_, query: types.CallbackQuery):
     await tg.cancel(query)
 
 
+# ================= PLAYER CONTROLS =================
 @app.on_callback_query(filters.regex("controls") & ~app.bl_users)
 @lang.language()
 @can_manage_vc
@@ -32,6 +33,7 @@ async def _controls(_, query: types.CallbackQuery):
 
     if action == "status":
         return await query.answer()
+
     await query.answer(query.lang["processing"], show_alert=True)
 
     if action == "pause":
@@ -40,21 +42,16 @@ async def _controls(_, query: types.CallbackQuery):
                 query.lang["play_already_paused"], show_alert=True
             )
         await anon.pause(chat_id)
-        if qaction:
-            return await query.edit_message_reply_markup(
-                reply_markup=buttons.queue_markup(chat_id, query.lang["paused"], False)
-            )
         status = query.lang["paused"]
         reply = query.lang["play_paused"].format(user)
 
     elif action == "resume":
         if await db.playing(chat_id):
-            return await query.answer(query.lang["play_not_paused"], show_alert=True)
-        await anon.resume(chat_id)
-        if qaction:
-            return await query.edit_message_reply_markup(
-                reply_markup=buttons.queue_markup(chat_id, query.lang["playing"], True)
+            return await query.answer(
+                query.lang["play_not_paused"], show_alert=True
             )
+        await anon.resume(chat_id)
+        status = query.lang["playing"]
         reply = query.lang["play_resumed"].format(user)
 
     elif action == "skip":
@@ -69,17 +66,21 @@ async def _controls(_, query: types.CallbackQuery):
 
         m_id = queue.get_current(chat_id).message_id
         queue.force_add(chat_id, media, remove=pos)
+
         try:
             await app.delete_messages(
-                chat_id=chat_id, message_ids=[m_id, media.message_id], revoke=True
+                chat_id=chat_id,
+                message_ids=[m_id, media.message_id],
+                revoke=True,
             )
             media.message_id = None
         except:
             pass
 
-        msg = await app.send_message(chat_id=chat_id, text=query.lang["play_next"])
+        msg = await app.send_message(chat_id, query.lang["play_next"])
         if not media.file_path:
             media.file_path = await yt.download(media.id, video=media.video)
+
         media.message_id = msg.id
         return await anon.play_media(chat_id, msg, media)
 
@@ -103,52 +104,68 @@ async def _controls(_, query: types.CallbackQuery):
             mtext = re.sub(
                 r"\n\n<blockquote>.*?</blockquote>",
                 "",
-                query.message.caption.html or query.message.text.html,
+                query.message.caption.html
+                if query.message.caption
+                else query.message.text.html,
                 flags=re.DOTALL,
             )
-            keyboard = buttons.controls(
-                chat_id, status=status if action != "resume" else None
+            keyboard = buttons.controls(chat_id, status=status)
+
+            await query.edit_message_text(
+                f"{mtext}\n\n<blockquote>{reply}</blockquote>",
+                reply_markup=keyboard,
             )
-        await query.edit_message_text(
-            f"{mtext}\n\n<blockquote>{reply}</blockquote>", reply_markup=keyboard
-        )
     except:
         pass
 
 
+# ================= HELP MENU (FIXED) =================
 @app.on_callback_query(filters.regex("help") & ~app.bl_users)
 @lang.language()
 async def _help(_, query: types.CallbackQuery):
     data = query.data.split()
+
     if len(data) == 1:
-        return await query.answer(url=f"https://t.me/{app.username}?start=help")
+        return await query.answer(
+            url=f"https://t.me/{app.username}?start=help"
+        )
 
     if data[1] == "back":
         return await query.edit_message_text(
-            text=query.lang["help_menu"], reply_markup=buttons.help_markup(query.lang)
+            text=query.lang["help_menu"],
+            reply_markup=buttons.help_markup(query.lang),
         )
+
     elif data[1] == "close":
         try:
             await query.message.delete()
-            return await query.message.reply_to_message.delete()
+            await query.message.reply_to_message.delete()
         except:
             pass
+        return  # 🔒 VERY IMPORTANT (crash stop)
 
     await query.edit_message_text(
-        text=query.lang[f"help_{data[1]}"],
+        text=query.lang.get(
+            f"help_{data[1]}",
+            query.lang["help_menu"],
+        ),
         reply_markup=buttons.help_markup(query.lang, True),
     )
 
 
+# ================= PLAY MODE =================
 @app.on_callback_query(filters.regex("playmode") & ~app.bl_users)
 @lang.language()
 @admin_check
 async def _playmode(_, query: types.CallbackQuery):
     await query.answer(query.lang["processing"], show_alert=True)
+
     chat_id = query.message.chat.id
     admin_only = await db.get_play_mode(chat_id)
     _language = await db.get_lang(chat_id)
+
     await db.set_play_mode(chat_id, admin_only)
+
     await query.edit_message_reply_markup(
         reply_markup=buttons.settings_markup(
             query.lang,

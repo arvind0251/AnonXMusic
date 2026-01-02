@@ -1,44 +1,21 @@
-# vc_logger.py
-# Copyright (c) 2026 Rudra
-# Licensed under the MIT License
-# This file is part of AnonXMusic VC Logger
+from pyrogram import filters
+from anony import app
+from pyrogram.types import ChatMemberUpdated
 
-import asyncio
-from pyrogram import filters, types
-from anony import app  # Make sure 'app' is your Pyrogram Client
+@app.on_chat_member_updated()
+async def vc_join_leave(client, update: ChatMemberUpdated):
+    old = update.old_chat_member
+    new = update.new_chat_member
+    user = update.from_user
 
-# ================= VC JOIN =================
-@app.on_message(filters.new_chat_members & ~filters.bot)
-async def vc_join_logger(_, m: types.Message):
-    """
-    Handles new members joining the group/VC
-    """
-    for user in m.new_chat_members:
-        text = f"""
-<b>#JoinVideoChat</b>
+    if old.status in ["left", "kicked"] and new.status in ["member", "administrator"]:
+        msg = f"● ɴᴀᴍᴇ ➛ {user.first_name}\n● ɪᴅ ➛ {user.id}\n● ᴜsᴇʀɴᴀᴍᴇ ➛ @{user.username}\nJoined the VC!"
+        m = await app.send_message(update.chat.id, msg)
+        await asyncio.sleep(5)
+        await m.delete()
 
-● ɴᴀᴍᴇ ➛ {user.first_name}
-● ɪᴅ ➛ {user.id}
-● ᴜsᴇʀɴᴀᴍᴇ ➛ @{user.username if user.username else 'N/A'}
-"""
-        msg = await m.reply_text(text, parse_mode="html")
-        await asyncio.sleep(5)  # Auto-delete after 5 seconds
-        await msg.delete()
-
-# ================= VC LEAVE =================
-@app.on_message(filters.left_chat_member & ~filters.bot)
-async def vc_leave_logger(_, m: types.Message):
-    """
-    Handles members leaving the group/VC
-    """
-    user = m.left_chat_member
-    text = f"""
-<b>#LeaveVideoChat</b>
-
-● ɴᴀᴍᴇ ➛ {user.first_name}
-● ɪᴅ ➛ {user.id}
-● ᴜsᴇʀɴᴀᴍᴇ ➛ @{user.username if user.username else 'N/A'}
-"""
-    msg = await m.reply_text(text, parse_mode="html")
-    await asyncio.sleep(5)  # Auto-delete after 5 seconds
-    await msg.delete()
+    elif old.status in ["member", "administrator"] and new.status in ["left", "kicked"]:
+        msg = f"● ɴᴀᴍᴇ ➛ {user.first_name}\n● ɪᴅ ➛ {user.id}\n● ᴜsᴇʀɴᴀᴍᴇ ➛ @{user.username}\nLeft the VC!"
+        m = await app.send_message(update.chat.id, msg)
+        await asyncio.sleep(5)
+        await m.delete()

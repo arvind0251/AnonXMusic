@@ -1,45 +1,68 @@
-# vc_logger.py
-# Copyright (c) 2026 Rudra
-# Licensed under the MIT License
-# This plugin logs VC join/leave events with auto-delete messages
-
 import asyncio
 from pyrogram import filters, types
-from pyrogram.types import ChatMemberUpdated
+from pyrogram.enums import ChatMemberStatus
 from anony import app
 
-# ----------------- VC JOIN / LEAVE LOGGER -----------------
-@app.on_chat_member_updated()
-async def vc_join_leave(client: app, update: ChatMemberUpdated):
-    old = update.old_chat_member
-    new = update.new_chat_member
-    user = update.from_user
-    chat_id = update.chat.id
 
-    # Ignore if user info not available
-    if not user:
+@app.on_chat_member_updated(filters.group)
+async def vc_join_leave(_, m: types.ChatMemberUpdated):
+
+    old = m.old_chat_member
+    new = m.new_chat_member
+
+    # 🛑 Safety check (MOST IMPORTANT)
+    if not old or not new:
         return
 
-    # USER JOINED VC
-    if old.status in ["left", "kicked"] and new.status in ["member", "administrator"]:
-        text = (
-            f"● ɴᴀᴍᴇ ➛ {user.first_name}\n"
-            f"● ɪᴅ ➛ {user.id}\n"
-            f"● ᴜsᴇʀɴᴀᴍᴇ ➛ @{user.username}\n"
-            f"Joined the VC!"
-        )
-        msg = await app.send_message(chat_id, text, parse_mode=types.ParseMode.HTML)
-        await asyncio.sleep(5)
-        await msg.delete()
+    user = new.user
+    chat = m.chat
 
-    # USER LEFT VC
-    elif old.status in ["member", "administrator"] and new.status in ["left", "kicked"]:
+    # Ignore bots
+    if user.is_bot:
+        return
+
+    text = None
+
+    # ✅ JOIN
+    if old.status in [
+        ChatMemberStatus.LEFT,
+        ChatMemberStatus.BANNED
+    ] and new.status in [
+        ChatMemberStatus.MEMBER,
+        ChatMemberStatus.ADMINISTRATOR
+    ]:
         text = (
-            f"● ɴᴀᴍᴇ ➛ {user.first_name}\n"
-            f"● ɪᴅ ➛ {user.id}\n"
-            f"● ᴜsᴇʀɴᴀᴍᴇ ➛ @{user.username}\n"
-            f"Left the VC!"
+            "<b>#JoinVideoChat</b>\n\n"
+            f"● <b>NAME ➛</b> {user.first_name}\n"
+            f"● <b>ID ➛</b> <code>{user.id}</code>\n"
+            f"● <b>USERNAME ➛</b> @{user.username or 'None'}"
         )
-        msg = await app.send_message(chat_id, text, parse_mode=types.ParseMode.HTML)
-        await asyncio.sleep(5)
-        await msg.delete()
+
+    # ❌ LEAVE
+    elif old.status in [
+        ChatMemberStatus.MEMBER,
+        ChatMemberStatus.ADMINISTRATOR
+    ] and new.status in [
+        ChatMemberStatus.LEFT,
+        ChatMemberStatus.BANNED
+    ]:
+        text = (
+            "<b>#LeaveVideoChat</b>\n\n"
+            f"● <b>NAME ➛</b> {user.first_name}\n"
+            f"● <b>ID ➛</b> <code>{user.id}</code>\n"
+            f"● <b>USERNAME ➛</b> @{user.username or 'None'}"
+        )
+
+    if not text:
+        return
+
+    # ✅ Send message
+    msg = await app.send_message(
+        chat_id=chat.id,
+        text=text,
+        parse_mode=types.ParseMode.HTML
+    )
+
+    # 🕒 Auto delete after 5 sec
+    await asyncio.sleep(5)
+    await msg.delete()

@@ -2,7 +2,6 @@
 # Licensed under the MIT License.
 # This file is part of AnonXMusic
 
-
 import re
 
 from pyrogram import enums, types
@@ -33,8 +32,16 @@ class Utilities:
         else:
             return f"{bytes / 1024:.2f} KB"
 
-    def to_seconds(self, time: str) -> int:
-        parts = [int(p) for p in time.strip().split(":")]
+    # ✅ FIXED: NoneType.strip() crash solved
+    def to_seconds(self, time: str | None) -> int:
+        if not time:
+            return 0
+
+        try:
+            parts = [int(p) for p in time.strip().split(":")]
+        except Exception:
+            return 0
+
         return sum(value * 60**i for i, value in enumerate(reversed(parts)))
 
     async def extract_user(self, msg: types.Message) -> types.User | None:
@@ -52,7 +59,7 @@ class Utilities:
                     return await app.get_users(m.group(0))
                 if m := re.search(r"\b\d{6,15}\b", msg.text):
                     return await app.get_users(int(m.group(0)))
-            except:
+            except Exception:
                 pass
 
         return None
@@ -65,6 +72,7 @@ class Utilities:
     ) -> None:
         if m.chat.id == app.logger:
             return
+
         _text = m.lang["play_log"].format(
             app.name,
             m.chat.id,

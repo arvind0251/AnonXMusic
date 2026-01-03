@@ -1,44 +1,78 @@
-from pyrogram import filters
-from pyrogram.types import ChatMemberUpdated
-from anony import app
 import asyncio
+from pyrogram import filters
+from pytgcalls.types import Update
+from pytgcalls.types.call_participant import CallParticipant
+
+from anony import app, pytgcalls
+
+# ================= STORAGE =================
+VC_LOG_STATUS = {}  # chat_id: True/False
 
 
-@app.on_chat_member_updated(filters.group)
-async def vc_join_leave(_, m: ChatMemberUpdated):
-    old = m.old_chat_member
-    new = m.new_chat_member
+# ================= COMMAND =================
+@app.on_message(filters.command("vclog") & filters.group)
+async def vc_log_toggle(_, m):
+    if len(m.command) < 2:
+        return await m.reply_text(
+            "❌ Usage:\n\n/vclog on\n/vclog off"
+        )
 
-    # None safety check (VERY IMPORTANT)
-    if not old or not new:
+    chat_id = m.chat.id
+    option = m.command[1].lower()
+
+    if option == "on":
+        VC_LOG_STATUS[chat_id] = True
+        await m.reply_text("✅ VC Join/Leave Logger **ENABLED**")
+
+    elif option == "off":
+        VC_LOG_STATUS[chat_id] = False
+        await m.reply_text("❌ VC Join/Leave Logger **DISABLED**")
+
+    else:
+        await m.reply_text("❌ Invalid option\nUse: on / off")
+
+
+# ================= VC EVENTS =================
+@pytgcalls.on_update()
+async def vc_join_leave(_, update: Update):
+
+    if not isinstance(update, CallParticipant):
         return
 
-    user = m.from_user
+    chat_id = update.chat_id
+
+    # Logger OFF hai
+    if not VC_LOG_STATUS.get(chat_id):
+        return
+
+    user = update.user
     if not user:
         return
 
-    # USER JOIN
-    if old.status in ("left", "kicked") and new.status in ("member", "administrator"):
+    username = f"@{user.username}" if user.username else "N/A"
+
+    # ================= JOIN =================
+    if update.joined:
         text = (
-            "<b>#JoinGroup</b>\n\n"
+            "<b>#JoinVideoChat</b>\n\n"
             f"● ɴᴀᴍᴇ ➛ {user.first_name}\n"
             f"● ɪᴅ ➛ <code>{user.id}</code>\n"
-            f"● ᴜsᴇʀɴᴀᴍᴇ ➛ @{user.username if user.username else 'N/A'}"
+            f"● ᴜsᴇʀɴᴀᴍᴇ ➛ {username}"
         )
 
-        msg = await m.chat.send_message(text, parse_mode="html")
+        msg = await app.send_message(chat_id, text, parse_mode="html")
         await asyncio.sleep(5)
         await msg.delete()
 
-    # USER LEAVE
-    if old.status in ("member", "administrator") and new.status in ("left", "kicked"):
+    # ================= LEAVE =================
+    if update.left:
         text = (
-            "<b>#LeaveGroup</b>\n\n"
+            "<b>#LeaveVideoChat</b>\n\n"
             f"● ɴᴀᴍᴇ ➛ {user.first_name}\n"
             f"● ɪᴅ ➛ <code>{user.id}</code>\n"
-            f"● ᴜsᴇʀɴᴀᴍᴇ ➛ @{user.username if user.username else 'N/A'}"
+            f"● ᴜsᴇʀɴᴀᴍᴇ ➛ {username}"
         )
 
-        msg = await m.chat.send_message(text, parse_mode="html")
+        msg = await app.send_message(chat_id, text, parse_mode="html")
         await asyncio.sleep(5)
         await msg.delete()
